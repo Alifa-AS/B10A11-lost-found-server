@@ -3,7 +3,7 @@ const cors = require('cors');
 const app = express();
 require('dotenv').config();
 const port = process.env.PORT || 5000;
-const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
+const { MongoClient, ServerApiVersion, ObjectId, ReadConcernLevel } = require('mongodb');
 
 
 //middleware
@@ -49,6 +49,15 @@ async function run() {
       res.send(result);
     })
 
+    app.post('/items', async(req,res) =>{
+      const newPost = req.body;
+      const result = await itemsCollection.insertOne(newPost);
+      res.send(result);
+    })
+
+
+    //recover apis
+    // app.post('/recover-item', async(req,res) =>{})
     
 
 } finally {
