@@ -30,13 +30,19 @@ async function run() {
     await client.db("admin").command({ ping: 1 });
     console.log("Pinged your deployment. You successfully connected to MongoDB!");
   
-
-
-    //lost and found related API's
+   
     const itemsCollection = client.db('lostFound').collection('items');
+    const recoverCollection = client.db('lostFound').collection('recover');
 
+
+     //lost and found related API's
     app.get('/items', async(req,res)=>{
-      const cursor = itemsCollection.find();
+      const email = req.query.email;
+      let query = {};
+      if(email){
+        query = { 'contact.email': email }
+      }
+      const cursor = itemsCollection.find(query);
       const result = await cursor.toArray();
       res.send(result);
     })
@@ -56,9 +62,42 @@ async function run() {
     })
 
 
-    //recover apis
-    // app.post('/recover-item', async(req,res) =>{})
+    //recover related apis
+    app.get('/recover', async(req, res) => {
+      const email = req.query.email;
+      console.log("Email received:", email); 
+  
+      if (!email) {
+          return res.status(400).send({ error: "Email is required" });
+      }
+      const query = { "contact.email": email };
+      const result = await recoverCollection.find(query).toArray();
+      console.log("Recovered data:", result);
+      if (result.length === 0) {
+          return res.status(404).send({ message: "No data found for this email" });
+      }
+      res.send(result);
+  });
+  
+
+    app.post('/recover', async(req,res) =>{
+      console.log("Received data:", req.body);
+      const { contact, ...recoverItems } = req.body;
+      const {name, email } = contact;
+      console.log("Request Body:", req.body); 
+      const recoverData = {
+        ...recoverItems,
+        contact: { 
+          name: name || "Unknown",
+          email: email || "No Email"
+        }
+      };
+      const result = await recoverCollection.insertOne(recoverData);
+      console.log("Insert result:", result); 
+      res.send(result);
+      })
     
+
 
 } finally {
     // Ensures that the client will close when you finish/error
