@@ -62,7 +62,26 @@ async function run() {
     })
 
     //update
-   
+   app.put('/items/:id', async(req,res) =>{
+    const id = req.params.id;
+    const filter = {_id: new ObjectId(id)}
+    const options = {upsert: true};
+    const updatedItems = req.body;
+    const item = {
+      $set: {
+          title: updatedItems.title,
+          category: updatedItems.category,
+          date: updatedItems.date,
+          location: updatedItems.location,
+          thumbnail: updatedItems.thumbnail,
+          description: updatedItems.description,
+          contact: updatedItems.contact,
+          status: updatedItems.status,
+      }
+    }
+    const result = await itemsCollection.updateOne(filter, item, options);
+    res.send(result);
+   })
 
     //delete 
     app.delete('/items/:id', async(req,res) =>{
