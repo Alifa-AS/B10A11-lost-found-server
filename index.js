@@ -61,6 +61,17 @@ async function run() {
       res.send(result);
     })
 
+    //update
+   
+
+    //delete 
+    app.delete('/items/:id', async(req,res) =>{
+      const id = req.params.id;
+      const query = {_id: new ObjectId(id)}
+      const result = await itemsCollection.deleteOne(query);
+      res.send(result);
+    })
+
 
     //recover related apis
     app.get('/recover', async(req, res) => {
@@ -76,6 +87,19 @@ async function run() {
       if (result.length === 0) {
           return res.status(404).send({ message: "No data found for this email" });
       }
+
+      //data aggregate
+      for(const application of result){
+        console.log(application.item_id)
+        const query1 = {_id: new ObjectId(application.item_id)}
+        const recovered = await itemsCollection.findOne(query1);
+        if(recovered){
+          application.title = recovered.title;
+          application.location = recovered.location;
+          application.category = recovered.category;
+        }
+      }
+
       res.send(result);
   });
   
