@@ -1,14 +1,41 @@
 const express = require('express');
 const cors = require('cors');
+const jwt = require('jsonwebtoken');
+const cookieParser = require('cookie-parser');
 const app = express();
 require('dotenv').config();
 const port = process.env.PORT || 5000;
-const { MongoClient, ServerApiVersion, ObjectId, ReadConcernLevel } = require('mongodb');
+const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 
 
 //middleware
-app.use(cors());
+app.use(cors({
+  origin: ['http://localhost:5173'],
+  credentials: true
+}));
 app.use(express.json());
+app.use(cookieParser());
+
+const logger = (req, res, next) =>{
+  console.log('inside the logger');
+  next();
+}
+
+const verifyToken = (req, res, next) =>{
+  console.log('inside verify token', req.cookies);
+  const token = req?.cookies?.token;
+  if(!token){
+    return res.status(401).send({ message: ' UnAuthorized access '})
+  }
+  //verify the token
+  jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decoded)=>{
+    if(err){
+      return res.status(401).send({ message: 'UnAuthorized access' })
+    }
+    req.user = decoded;
+    next();
+  })
+}
 
 
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.jhhpo.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
@@ -34,14 +61,28 @@ async function run() {
     const itemsCollection = client.db('lostFound').collection('items');
     const recoverCollection = client.db('lostFound').collection('recover');
 
+    //Auth related api
+    app.post('/jwt', async(req,res)=>{
+      const user = req.body;
+      const token = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET, {expiresIn: '5h'});
+      res.cookie('token', token, {
+        httpOnly: true,
+        secure: false, //http://localhost:5173/login
+        
+      })
+      .send({success: true});
+    })
+
 
      //lost and found related API's
-    app.get('/items', async(req,res)=>{
+    app.get('/items', logger, async(req,res)=>{
+      console.log('now inside the api callback')
       const email = req.query.email;
       let query = {};
       if(email){
         query = { 'contact.email': email }
       }
+      console.log('cookies', req.cookies);
       const cursor = itemsCollection.find(query);
       const result = await cursor.toArray();
       res.send(result);
@@ -60,6 +101,38 @@ async function run() {
       const result = await itemsCollection.insertOne(newPost);
       res.send(result);
     })
+
+    //status update
+    app.patch('/items/:id', async (req, res) => {
+      try {
+        const { id } = req.params;
+        const { status } = req.body;
+    
+        if (!ObjectId.isValid(id)) {
+          return res.status(400).json({ error: "Invalid Item ID" });
+        }
+    
+        if (!status) {
+          return res.status(400).json({ error: "Status is required" });
+        }
+    
+        const result = await itemsCollection.updateOne(
+          { _id: new ObjectId(id), status: { $ne: "recovered" } }, 
+          { $set: { status: "recovered" } }
+        );
+    
+        if (result.modifiedCount === 0) {
+          return res.status(404).json({ error: "Item not found or already recovered" });
+        }
+    
+        res.json({ success: true, message: "Item status updated to recovered" });
+      } catch (error) {
+        console.error("Error updating item status:", error);
+        res.status(500).json({ error: "Failed to update item status" });
+      }
+    });
+    
+
 
     //update
    app.put('/items/:id', async(req,res) =>{
@@ -93,7 +166,7 @@ async function run() {
 
 
     //recover related apis
-    app.get('/recover', async(req, res) => {
+    app.get('/recover', verifyToken, async(req, res) => {
       const email = req.query.email;
       console.log("Email received:", email); 
   
