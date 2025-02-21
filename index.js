@@ -21,15 +21,17 @@ const logger = (req, res, next) =>{
   next();
 }
 
+//verify the token
 const verifyToken = (req, res, next) =>{
   console.log('inside verify token', req.cookies);
   const token = req?.cookies?.token;
   if(!token){
     return res.status(401).send({ message: ' UnAuthorized access '})
   }
-  //verify the token
+  
   jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decoded)=>{
     if(err){
+      console.log('Token verification error:', err);
       return res.status(401).send({ message: 'UnAuthorized access' })
     }
     req.user = decoded;
@@ -65,22 +67,27 @@ async function run() {
     app.post('/jwt', async(req,res)=>{
       const user = req.body;
       const token = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET, {expiresIn: '5h'});
-      res.cookie('token', token, {
+      res
+      .cookie('token', token, {
         httpOnly: true,
-        secure: false, //http://localhost:5173/login
-        
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'strict',
       })
-      .send({success: true});
+      .send({ success: true })
     })
 
 
      //lost and found related API's
-    app.get('/items', logger, async(req,res)=>{
+    app.get('/items', logger, verifyToken, async(req,res)=>{
       console.log('now inside the api callback')
       const email = req.query.email;
       let query = {};
       if(email){
         query = { 'contact.email': email }
+
+        if(req.user.email !== req.query.email){
+          return res.status(403).send({message: 'forbidden access'})
+        }
       }
       console.log('cookies', req.cookies);
       const cursor = itemsCollection.find(query);
@@ -166,10 +173,9 @@ async function run() {
 
 
     //recover related apis
-    app.get('/recover', verifyToken, async(req, res) => {
+    app.get('/recover', async(req, res) => {
       const email = req.query.email;
       console.log("Email received:", email); 
-  
       if (!email) {
           return res.status(400).send({ error: "Email is required" });
       }
