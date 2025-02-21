@@ -85,25 +85,49 @@ async function run() {
     })
 
      //lost and found related API's
-    app.get('/items', logger, verifyToken, async(req,res)=>{
+    app.get('/items', async(req,res)=>{
       console.log('now inside the api callback')
+
       const email = req.query.email;
+      const sort = req.query?.sort;
+      const search  = req.query?.search;
+      const filter = req.query?.filter;
+
       let query = {};
+      let sortQuery = {};
+      console.log("Before Processing Query:", req.query);
+
       if(email){
         query = { 'contact.email': email }
 
-        if(req.user.email !== req.query.email){
-          return res.status(403).send({message: 'forbidden access'})
-        }
+        // if(req.user.email !== req.query.email){
+        //   return res.status(403).send({message: 'forbidden access'})
+        // }
       }
-      console.log('cookies', req.cookies);
-      const cursor = itemsCollection.find(query);
+      // console.log('cookies', req.cookies);
+
+      if(sort == "true"){
+        sortQuery = {"title" : 1 } 
+      }
+
+      if(search){
+        query.location={$regex:search , $options: "i" };
+      }
+      console.log(query);
+
+      if(filter && filter !== "All"){
+        query.category = filter;
+      }
+      console.log("Final Query:", query);
+      console.log("Sorting:", sortQuery);
+
+      const cursor = itemsCollection.find(query).sort(sortQuery);
       const result = await cursor.toArray();
       res.send(result);
     })
 
 
-    app.get('/items/:id', async(req,res)=>{
+    app.get('/items/:id',logger, verifyToken, async(req,res)=>{
       const id = req.params.id;
       const query = { _id: new ObjectId(id)}
       const result = await itemsCollection.findOne(query);
