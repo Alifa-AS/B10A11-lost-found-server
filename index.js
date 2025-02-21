@@ -76,6 +76,13 @@ async function run() {
       .send({ success: true })
     })
 
+    app.post('/logout', (req,res) => {
+      res.clearCookie('token', {
+        httpOnly: true,
+        secure: false
+      })
+      res.send({ success: true })
+    })
 
      //lost and found related API's
     app.get('/items', logger, verifyToken, async(req,res)=>{
