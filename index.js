@@ -161,6 +161,7 @@ async function run() {
     }
     const result = await itemsCollection.updateOne(filter, item, options);
     res.send(result);
+    console.log(result)
    })
 
     //delete 
@@ -188,18 +189,23 @@ async function run() {
 
       //data aggregate
       for(const application of result){
-        console.log(application.item_id)
-        const query1 = {_id: new ObjectId(application.item_id)}
-        const recovered = await itemsCollection.findOne(query1);
+        console.log(application._id)
+        const query1 = {_id: new ObjectId(application._id)}
+        const recovered = await recoverCollection.findOne(query1);
+        console.log('got recovered data',recovered)
         if(recovered){
-          application.title = recovered.title;
+          application.date = recovered.date;
+          console.log(recovered.date);
           application.location = recovered.location;
-          application.category = recovered.category;
+          console.log(recovered.location);
+          
         }
+        console.log("After update:", application); 
       }
-
+      
       res.send(result);
-  });
+    });
+   
   
 
     app.post('/recover', async(req,res) =>{
