@@ -84,8 +84,22 @@ async function run() {
       res.send({ success: true })
     })
 
+
+    
      //lost and found related API's
-    app.get('/items', async(req,res)=>{
+
+     app.get('/items/all', async (req, res) => {
+      try {
+          const items = await itemsCollection.find().toArray();
+          res.json(items);
+      } catch (error) {
+          console.error('Error fetching items:', error); 
+          res.status(500).send({ message: 'Internal server error' });
+      }
+  });
+  
+
+    app.get('/items',verifyToken, logger, async(req,res)=>{
       console.log('now inside the api callback')
 
       const email = req.query.email;
@@ -100,11 +114,11 @@ async function run() {
       if(email){
         query = { 'contact.email': email }
 
-        // if(req.user.email !== req.query.email){
-        //   return res.status(403).send({message: 'forbidden access'})
-        // }
+        if(req.user.email !== req.query.email){
+          return res.status(403).send({message: 'forbidden access'})
+        }
       }
-      // console.log('cookies', req.cookies);
+      console.log('cookies', req.cookies);
 
       if(sort == "true"){
         sortQuery = {"title" : 1 } 
@@ -127,7 +141,7 @@ async function run() {
     })
 
 
-    app.get('/items/:id',logger, verifyToken, async(req,res)=>{
+    app.get('/items/:id', async(req,res)=>{
       const id = req.params.id;
       const query = { _id: new ObjectId(id)}
       const result = await itemsCollection.findOne(query);
