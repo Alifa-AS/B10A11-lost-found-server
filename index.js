@@ -10,20 +10,24 @@ const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 
 //middleware
 app.use(cors({
-  origin: ['http://localhost:5173'],
+  origin: [
+    'http://localhost:5173',
+    'https://lost-found-client.web.app',
+    'https://lost-found-client.firebaseapp.com'
+  ],
   credentials: true
 }));
 app.use(express.json());
 app.use(cookieParser());
 
 const logger = (req, res, next) =>{
-  console.log('inside the logger');
+  // console.log('inside the logger');
   next();
 }
 
 //verify the token
 const verifyToken = (req, res, next) =>{
-  console.log('inside verify token', req.cookies);
+  // console.log('inside verify token', req.cookies);
   const token = req?.cookies?.token;
   if(!token){
     return res.status(401).send({ message: ' UnAuthorized access '})
@@ -31,7 +35,7 @@ const verifyToken = (req, res, next) =>{
   
   jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decoded)=>{
     if(err){
-      console.log('Token verification error:', err);
+      // console.log('Token verification error:', err);
       return res.status(401).send({ message: 'UnAuthorized access' })
     }
     req.user = decoded;
@@ -54,10 +58,10 @@ const client = new MongoClient(uri, {
 async function run() {
   try {
     // Connect the client to the server	(optional starting in v4.7)
-    await client.connect();
+    // await client.connect();
     // Send a ping to confirm a successful connection
-    await client.db("admin").command({ ping: 1 });
-    console.log("Pinged your deployment. You successfully connected to MongoDB!");
+    // await client.db("admin").command({ ping: 1 });
+    // console.log("Pinged your deployment. You successfully connected to MongoDB!");
   
    
     const itemsCollection = client.db('lostFound').collection('items');
@@ -66,12 +70,12 @@ async function run() {
     //Auth related api
     app.post('/jwt', async(req,res)=>{
       const user = req.body;
-      const token = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET, {expiresIn: '5h'});
+      const token = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET, {expiresIn: '10h'});
       res
       .cookie('token', token, {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
-        sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'strict',
+        sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'strict'
       })
       .send({ success: true })
     })
@@ -79,7 +83,8 @@ async function run() {
     app.post('/logout', (req,res) => {
       res.clearCookie('token', {
         httpOnly: true,
-        secure: false
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'strict'
       })
       res.send({ success: true })
     })
@@ -87,38 +92,17 @@ async function run() {
 
     
      //lost and found related API's
-
-     app.get('/items/all', async (req, res) => {
-      try {
-          const items = await itemsCollection.find().toArray();
-          res.json(items);
-      } catch (error) {
-          console.error('Error fetching items:', error); 
-          res.status(500).send({ message: 'Internal server error' });
-      }
-  });
   
+    app.get('/items/all', async(req,res)=>{
 
-    app.get('/items',verifyToken, logger, async(req,res)=>{
-      console.log('now inside the api callback')
-
-      const email = req.query.email;
       const sort = req.query?.sort;
       const search  = req.query?.search;
       const filter = req.query?.filter;
 
       let query = {};
       let sortQuery = {};
-      console.log("Before Processing Query:", req.query);
+      // console.log("Before Processing Query:", req.query);
 
-      if(email){
-        query = { 'contact.email': email }
-
-        if(req.user.email !== req.query.email){
-          return res.status(403).send({message: 'forbidden access'})
-        }
-      }
-      console.log('cookies', req.cookies);
 
       if(sort == "true"){
         sortQuery = {"title" : 1 } 
@@ -127,15 +111,38 @@ async function run() {
       if(search){
         query.location={$regex:search , $options: "i" };
       }
-      console.log(query);
+      // console.log(query);
 
       if(filter && filter !== "All"){
         query.category = filter;
       }
-      console.log("Final Query:", query);
-      console.log("Sorting:", sortQuery);
+      // console.log("Final Query:", query);
+      // console.log("Sorting:", sortQuery);
 
       const cursor = itemsCollection.find(query).sort(sortQuery);
+      const result = await cursor.toArray();
+      res.send(result);
+    })
+
+
+    app.get('/items',verifyToken, logger, async(req,res)=>{
+      // console.log('now inside the api callback')
+
+      const email = req.query.email;
+
+      let query = {};
+      // console.log("Before Processing Query:", req.query);
+
+      if(email){
+        query = { 'contact.email': email }
+
+        if(req.user.email !== req.query.email){
+          return res.status(403).send({message: 'forbidden access'})
+        }
+      }
+      // console.log('cookies', req.cookies);
+
+      const cursor = itemsCollection.find(query);
       const result = await cursor.toArray();
       res.send(result);
     })
@@ -206,7 +213,7 @@ async function run() {
     }
     const result = await itemsCollection.updateOne(filter, item, options);
     res.send(result);
-    console.log(result)
+    // console.log(result)
    })
 
     //delete 
@@ -221,31 +228,31 @@ async function run() {
     //recover related apis
     app.get('/recover', async(req, res) => {
       const email = req.query.email;
-      console.log("Email received:", email); 
+      // console.log("Email received:", email); 
       if (!email) {
           return res.status(400).send({ error: "Email is required" });
       }
       const query = { "contact.email": email };
       const result = await recoverCollection.find(query).toArray();
-      console.log("Recovered data:", result);
+      // console.log("Recovered data:", result);
       if (result.length === 0) {
           return res.status(404).send({ message: "No data found for this email" });
       }
 
       //data aggregate
       for(const application of result){
-        console.log(application._id)
+        // console.log(application._id)
         const query1 = {_id: new ObjectId(application._id)}
         const recovered = await recoverCollection.findOne(query1);
-        console.log('got recovered data',recovered)
+        // console.log('got recovered data',recovered)
         if(recovered){
           application.date = recovered.date;
-          console.log(recovered.date);
+          // console.log(recovered.date);
           application.location = recovered.location;
-          console.log(recovered.location);
+          // console.log(recovered.location);
           
         }
-        console.log("After update:", application); 
+        // console.log("After update:", application); 
       }
       
       res.send(result);
@@ -254,10 +261,10 @@ async function run() {
   
 
     app.post('/recover', async(req,res) =>{
-      console.log("Received data:", req.body);
+      // console.log("Received data:", req.body);
       const { contact, ...recoverItems } = req.body;
       const {name, email } = contact;
-      console.log("Request Body:", req.body); 
+      // console.log("Request Body:", req.body); 
       const recoverData = {
         ...recoverItems,
         contact: { 
@@ -266,7 +273,7 @@ async function run() {
         }
       };
       const result = await recoverCollection.insertOne(recoverData);
-      console.log("Insert result:", result); 
+      // console.log("Insert result:", result); 
       res.send(result);
       })
     
